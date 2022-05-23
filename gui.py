@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QCheckBox,
                              QMenuBar, QMenu, QFileDialog, QPushButton, QLabel, QLCDNumber,
                              QSizePolicy, QTableWidget, QTableWidgetItem, QGroupBox, QPlainTextEdit)
 from PyQt5.QtCore import Qt, QRect
@@ -48,7 +48,19 @@ class MainWindow(QWidget):
         self.grid1.addWidget(self.button2, 1, 0)
         self.grid1.addWidget(self.button1, 0, 1, 2, 1)
         # Область настройки вывода в таблицу
-        self.group_box = QGroupBox('Вывод результатов парсинга')
+        self.group = QGroupBox('Вывод результата')
+        self.group_vbox = QVBoxLayout()
+        self.status1 = QCheckBox("новые соответствующие запросу")
+        self.status2 = QCheckBox("только новые")
+        self.status3 = QCheckBox("все соответствующие запросу")
+        self.status4 = QCheckBox("все")
+        self.button_show = QPushButton("Вывести результат")
+        self.group_vbox.addWidget(self.status1)
+        self.group_vbox.addWidget(self.status2)
+        self.group_vbox.addWidget(self.status3)
+        self.group_vbox.addWidget(self.status4)
+        self.group_vbox.addWidget(self.button_show)
+        self.group.setLayout(self.group_vbox)
         # область вывода результата парсинга сайта
         self.table = QTableWidget()
         self.table.setColumnCount(5)
@@ -58,13 +70,13 @@ class MainWindow(QWidget):
         self.status_label.setText('Количество обработанных страниц: 0 из 0')
         # Настройка размещения компонентов
         self.hbox.addLayout(self.grid1)
-        self.hbox.addWidget(self.group_box)
+        self.hbox.addWidget(self.group)
         self.vbox.addLayout(self.hbox)
         self.vbox.addWidget(self.table)
         self.vbox.addWidget(self.status_label)
         self.setLayout(self.vbox)
 
-    def show_table(self, items: list):
+    def show_table2(self, items: list):
         """
         Заполнение таблицы данными из списка со словарями
         :param items: список словарей
@@ -88,7 +100,34 @@ class MainWindow(QWidget):
                     else:
                         elem = QTableWidgetItem(str(item[key]))
                         self.table.setItem(i, j, elem)
-        self.resize_table()
+        rect = self.rect()
+        self.resize(rect.width(), rect.height() - 1)
+
+    def show_table(self, items: list):
+        """
+        Заполнение таблицы данными из списка с кортежами
+        :param items: список кортежей
+        :return: None
+        """
+        self.table.clear()
+        self.table.setHorizontalHeaderLabels(self.hor_header)
+        self.table.setRowCount(len(items))
+        sizepolicy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        indexs = [0, 2, 3, 1, 6]
+        for i, item in enumerate(items):
+            for j, index in enumerate(indexs):
+                if type(item[index]) == str:
+                    if index == 2:
+                        elem = NameText(item[index])
+                        self.table.setCellWidget(i, j, elem)
+                    else:
+                        elem = QTableWidgetItem(item[index])
+                        self.table.setItem(i, j, elem)
+                else:
+                    elem = QTableWidgetItem(str(item[index]))
+                    self.table.setItem(i, j, elem)
+        rect = self.rect()
+        self.resize(rect.width(), rect.height() - 1)
 
     def resize_table(self):
         """Изменение размеров таблицы"""

@@ -49,7 +49,6 @@ class ParserSite:
             value = float(clear_text)
         except ValueError:
             value = None
-            logging.error(f'Ошибка конвертации: исходное-{text}, чистое-{clear_text}')
         return value
 
     @staticmethod
@@ -107,6 +106,9 @@ class ParserSite:
         field = quote.find(atrib1, class_=atrib2)
         if field:
             text = field.get_text(strip=True)
+            if "\n" in text:
+                text = text.replace("\n", " ")
+                text = text.replace("  ", " ")
             return text
         else:
             return None
@@ -205,6 +207,7 @@ class ParserSite:
                         if elem == 'Окончание подачи заявок':
                             item['ending'] = date_value[i]
                 find_items.append(item)
+                logging.info(f'Id: {item["id"]} Name: {item["name"]}')
 
             self.lock_items.acquire()
             try:
@@ -230,4 +233,3 @@ class ParserSite:
         for thread in threads:
             thread.start()
         self.q.join()
-        self.main.sql.add_items_to_table(self.items)

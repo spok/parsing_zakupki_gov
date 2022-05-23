@@ -294,25 +294,6 @@ def save_key_in_table():
 
     conn.close()
 
-# # получаем аргументы при запуске
-# script, first = argv
-# total = []
-#
-# if first == 'p':
-#     #парсинг сайта
-#     total = parse_zakupki(total)
-#     # сохранение результата
-#     save_new_table(total)
-#
-# elif first == 's':
-#     # сохранение всей базы в экселе
-#     save_base_in_table()
-#
-# elif first == 'r':
-#     # сохранение всех записей с совпадение в экселе
-#     save_key_in_table()
-
-
 
 class ParseThread(QThread):
     def __init__(self, parent=None):
@@ -330,7 +311,7 @@ class Main(MainWindow):
         self.pr = ParserSite(self)
         self.sql = MySql()
         self.button2.clicked.connect(self.start_parsing)
-        self.parse_thread.finished.connect(self.show_all_items)
+        self.parse_thread.finished.connect(self.save_bd)
         self.items = []
         self.__pages = 0
 
@@ -352,12 +333,28 @@ class Main(MainWindow):
         self.items = []
         self.parse_thread.start()
 
+    def save_bd(self):
+        """
+        Сохранение в базе даннх
+        :return:
+        """
+        parse_items = self.pr.items
+        self.sql.add_items_to_table(parse_items)
+        self.show_all_items()
+
     def show_all_items(self):
         """
         Отображение в таблице всех записей базы данных
         :return:
         """
-        self.show_table(self.pr.items)
+        self.show_table(self.sql.get_items(table="all_items"))
+
+    def show_new_items(self):
+        """
+        Отображение в таблице всех записей базы данных
+        :return:
+        """
+        self.show_table(self.sql.get_items(table="new_items"))
 
     def closeEvent(self, a0) -> None:
         pass
