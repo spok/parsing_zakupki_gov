@@ -206,6 +206,7 @@ class ParserSite:
                             item['updated'] = date_value[i]
                         if elem == 'Окончание подачи заявок':
                             item['ending'] = date_value[i]
+                item['target'] = 0
                 find_items.append(item)
                 logging.info(f'Id: {item["id"]} Name: {item["name"]}')
 

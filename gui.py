@@ -1,7 +1,7 @@
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QCheckBox,
-                             QMenuBar, QMenu, QFileDialog, QPushButton, QLabel, QLCDNumber,
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QCheckBox, QLineEdit, QLabel,
+                             QMenuBar, QMenu, QFileDialog, QPushButton, QLabel, QLCDNumber, QComboBox,
                              QSizePolicy, QTableWidget, QTableWidgetItem, QGroupBox, QPlainTextEdit)
-from PyQt5.QtCore import Qt, QRect
+from PyQt5.QtCore import Qt, QRect, QSize
 
 
 class NameText(QPlainTextEdit):
@@ -34,12 +34,21 @@ class MainWindow(QWidget):
         self.setWindowTitle('Парсинг zakupki.gov.ru')
         self.resize(800, 600)
         sizePolicy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        # Настройка меню
+        self.menu = QMenuBar(self)
+        self.file_menu = QMenu('Файл')
+        self.save_base = self.file_menu.addAction('Экспорт базы данных в Excel')
+        self.to_exit = self.file_menu.addAction('Выход')
+        self.menu.addMenu(self.file_menu)
+        # Компановщики основного окна
         self.vbox = QVBoxLayout()
         self.hbox = QHBoxLayout()
-        self.grid1 = QGridLayout()
         # Область управления временем запуска парсинга
+        self.grid1 = QGridLayout()
+        self.group_job = QGroupBox("Запуск сканирования")
         self.button1 = QPushButton('Таймер\nВЫКЛ')
         self.button1.setSizePolicy(sizePolicy)
+        self.button1.setFixedSize(QSize(100, 100))
         self.button2 = QPushButton('Ручной запуск')
         self.countdown = QLCDNumber(5)
         self.countdown.display(120)
@@ -47,20 +56,41 @@ class MainWindow(QWidget):
         self.grid1.addWidget(self.countdown, 0, 0)
         self.grid1.addWidget(self.button2, 1, 0)
         self.grid1.addWidget(self.button1, 0, 1, 2, 1)
+        self.group_job.setLayout(self.grid1)
+        # Область поиска контрактов по запросам
+        self.group_search = QGroupBox("Поиск по контрактам")
+        self.vbox_2 = QVBoxLayout()
+        self.hbox_2 = QHBoxLayout()
+        self.search_text = QLineEdit()
+        self.label_source = QLabel("Искать в:")
+        self.combo_source = QComboBox()
+        self.combo_source.addItem("названии контрактов")
+        self.combo_source.addItem("идентификаторе")
+        self.combo_source.addItem("заказчике")
+        self.combo_source.addItem("статусе")
+        self.combo_source.addItem("стоимостью больше")
+        self.combo_source.addItem("стоимостью меньше")
+        self.hbox_2.addWidget(self.label_source)
+        self.hbox_2.addWidget(self.combo_source)
+        self.button_search = QPushButton("Искать")
+        self.vbox_2.addWidget(self.search_text)
+        self.vbox_2.addLayout(self.hbox_2)
+        self.vbox_2.addWidget(self.button_search)
+        self.group_search.setLayout(self.vbox_2)
         # Область настройки вывода в таблицу
         self.group = QGroupBox('Вывод результата')
-        self.group_vbox = QVBoxLayout()
-        self.status1 = QCheckBox("новые соответствующие запросу")
-        self.status2 = QCheckBox("только новые")
-        self.status3 = QCheckBox("все соответствующие запросу")
-        self.status4 = QCheckBox("все")
+        self.vbox_3 = QVBoxLayout()
+        self.combo = QComboBox()
+        self.combo.addItem('Все новые активные')
+        self.combo.addItem('Все новые')
+        self.combo.addItem('Все активные')
+        self.combo.addItem('Все')
+        self.show_target = QCheckBox("соответсвующие запросам")
         self.button_show = QPushButton("Вывести результат")
-        self.group_vbox.addWidget(self.status1)
-        self.group_vbox.addWidget(self.status2)
-        self.group_vbox.addWidget(self.status3)
-        self.group_vbox.addWidget(self.status4)
-        self.group_vbox.addWidget(self.button_show)
-        self.group.setLayout(self.group_vbox)
+        self.vbox_3.addWidget(self.combo)
+        self.vbox_3.addWidget(self.show_target)
+        self.vbox_3.addWidget(self.button_show)
+        self.group.setLayout(self.vbox_3)
         # область вывода результата парсинга сайта
         self.table = QTableWidget()
         self.table.setColumnCount(5)
@@ -69,8 +99,10 @@ class MainWindow(QWidget):
         self.status_label = QLabel()
         self.status_label.setText('Количество обработанных страниц: 0 из 0')
         # Настройка размещения компонентов
-        self.hbox.addLayout(self.grid1)
+        self.hbox.addWidget(self.group_job)
+        self.hbox.addWidget(self.group_search)
         self.hbox.addWidget(self.group)
+        self.vbox.addSpacing(20)
         self.vbox.addLayout(self.hbox)
         self.vbox.addWidget(self.table)
         self.vbox.addWidget(self.status_label)
