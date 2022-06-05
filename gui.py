@@ -96,8 +96,15 @@ class MainWindow(QWidget):
         self.table.setColumnCount(5)
         self.table.setHorizontalHeaderLabels(self.hor_header)
         self.resize_table()
+        # информационная область внизу экрана
+        self.bottom_panel = QHBoxLayout()
         self.status_label = QLabel()
         self.status_label.setText('Количество обработанных страниц: 0 из 0')
+        self.count_records = QLabel()
+        self.count_records.setText('Количество записей: 0')
+        self.bottom_panel.addWidget(self.status_label)
+        self.bottom_panel.addStretch(0)
+        self.bottom_panel.addWidget(self.count_records)
         # Настройка размещения компонентов
         self.hbox.addWidget(self.group_job)
         self.hbox.addWidget(self.group_search)
@@ -105,7 +112,7 @@ class MainWindow(QWidget):
         self.vbox.addSpacing(20)
         self.vbox.addLayout(self.hbox)
         self.vbox.addWidget(self.table)
-        self.vbox.addWidget(self.status_label)
+        self.vbox.addLayout(self.bottom_panel)
         self.setLayout(self.vbox)
 
     def show_table2(self, items: list):

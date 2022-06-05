@@ -7,6 +7,7 @@ class MySql:
         self.conn = None
         self.cursor = None
         self.bd_name = 'zakupki.db'
+        self.connect_to_bd()
 
     def connect_to_bd(self):
         """
@@ -27,15 +28,28 @@ class MySql:
         # customer - заказчик работы
         # url - ссылка на страницу контракта
         # target - метка о соответствии контракта запросам (0 или 1)
-        command = """CREATE TABLE if not exists all_items (id TEXT, status TEXT, name TEXT, price REAL, placed TEXT, 
-                    updated TEXT, ending TEXT, customer TEXT, url TEXT, target INTEGER)"""
+        command = """CREATE TABLE if not exists all_items (id TEXT NOT NULL, status TEXT, name TEXT, 
+                     price REAL, placed TEXT, updated TEXT, ending TEXT, customer TEXT, url TEXT, target INTEGER, 
+                     PRIMARY KEY ( id ) );"""
         self.cursor.execute(command)
         self.conn.commit()
         # Таблица с новыми объявлениями
-        command = """create table if not exists new_items (id TEXT, status TEXT, name TEXT, price REAL, placed TEXT, 
-                    updated TEXT, ending TEXT, customer TEXT, url TEXT, target INTEGER)"""
+        command = """CREATE TABLE if not exists new_items (id TEXT NOT NULL, PRIMARY KEY ( id ), 
+                     FOREIGN KEY ( id ) REFERENCES all_items ( id ) ON DELETE CASCADE);"""
         self.cursor.execute(command)
         self.conn.commit()
+        # Таблица с ключами заросов
+        command = """CREATE TABLE if not exists search_key (name TEXT NOT NULL);"""
+        self.cursor.execute(command)
+        self.conn.commit()
+
+    def close_bd(self):
+        """
+        Закрыть соединение с базой данной
+        :return: None
+        """
+        if self.conn:
+            self.conn.close()
 
     @staticmethod
     def get_tuple_from_keys(item: dict, keys: tuple) -> tuple:
@@ -59,7 +73,7 @@ class MySql:
         :param id_contract: уникальный идентификатор контракта
         :return: None
         """
-        sql_select_query = """select * from all_items where id = ?"""
+        sql_select_query = """SELECT * FROM all_items WHERE id = ?;"""
         self.cursor.execute(sql_select_query, (id_contract,))
         records = self.cursor.fetchall()
         # в случае наличия записей в таблице
@@ -67,9 +81,20 @@ class MySql:
             # получаем и инвертируем метку контракта
             id_target = records[0][9]
             id_target = 0 if id_target else 1
-            command = """UPDATE all_items SET target = ? where id = ?"""
+            command = """UPDATE all_items SET target = ? WHERE id = ?;"""
             self.cursor.execute(command, (id_target, id_contract))
 
+    def get_count_records(self) -> int:
+        """
+        Возвращает общее количество записей в базе данных
+        :return: общее количество записей в базе данных
+        """
+        count = 0
+        if self.conn:
+            sql_query = """SELECT count(*) FROM all_items;"""
+            self.cursor.execute(sql_query)
+            count = self.cursor.fetchone()[0]
+        return count
 
     def add_to_table(self, item: dict):
         """
@@ -81,23 +106,22 @@ class MySql:
             keys = ('id', 'status', 'name', 'price', 'placed', 'updated', 'ending', 'customer', 'url', 'target')
             new = self.get_tuple_from_keys(item, keys)
             # проверка наличия существующего элемента в базе
-            sql_select_query = """select * from all_items where id = ?"""
+            sql_select_query = """select * from all_items where id = ?;"""
             self.cursor.execute(sql_select_query, (item['id'],))
             records = self.cursor.fetchall()
             if len(records) == 0:
                 # при отсутствии элементов с таким номер добавляеться запись в основную таблицу
                 command = """INSERT INTO all_items (id, status, name, price, placed, updated, ending, 
-                             customer, url, target) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
+                             customer, url, target) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?);"""
                 self.cursor.execute(command, new)
                 # Добавление в таблицу с новыми заявками
-                command = """INSERT INTO new_items (id, status, name, price, placed, updated, ending, 
-                             customer, url, target) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
-                self.cursor.execute(command, new)
+                command = """INSERT INTO new_items (id) VALUES(?);"""
+                self.cursor.execute(command, (item['id'], ))
             else:
                 # обновление существующей записи
                 keys = ('status', 'name', 'price', 'placed', 'updated', 'ending', 'customer', 'url', 'id')
                 command = """UPDATE all_items SET status = ?, name = ?, price = ?, placed = ?, updated = ?, 
-                            ending = ?, customer = ?, url = ? where id = ?"""
+                            ending = ?, customer = ?, url = ? where id = ?;"""
                 self.cursor.execute(command, self.get_tuple_from_keys(item, keys))
 
     def add_items_to_table(self, items: list):
@@ -106,11 +130,12 @@ class MySql:
         :param items: список словарей
         :return: None
         """
-        self.connect_to_bd()
+        if not self.conn:
+            self.connect_to_bd()
         try:
             # Очистка таблицы с новыми объявлениями
             try:
-                sql_select_query = """DELETE FROM new_items"""
+                sql_select_query = """DELETE FROM new_items;"""
                 self.cursor.execute(sql_select_query)
             finally:
                 self.conn.commit()
@@ -119,7 +144,6 @@ class MySql:
                 self.add_to_table(item)
         finally:
             self.conn.commit()
-            self.conn.close()
 
     def get_items(self, table: str = "all_items", status: str = "") -> list:
         """
@@ -129,15 +153,15 @@ class MySql:
         :return: список кортежей
         """
         records = []
-        self.connect_to_bd()
+        if not self.conn:
+            self.connect_to_bd()
         try:
             if status == "":
-                sql_select_query = f"SELECT * FROM {table}"
+                sql_select_query = f"SELECT * FROM {table};"
             else:
-                sql_select_query = f'SELECT * FROM {table} WHERE status = "{status}"'
+                sql_select_query = f'SELECT * FROM {table} WHERE status = "{status}";'
             self.cursor.execute(sql_select_query)
             records = self.cursor.fetchall()
         finally:
             self.conn.commit()
-            self.conn.close()
         return records

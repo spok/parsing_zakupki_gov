@@ -215,7 +215,6 @@ class ParserSite:
                 self.items.extend(find_items)
             finally:
                 self.lock_items.release()
-            print(f'Выполнена страница - {number}')
             self.main.completed_pages = 1
             q.task_done()
 

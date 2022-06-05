@@ -314,6 +314,7 @@ class Main(MainWindow):
         self.parse_thread.finished.connect(self.save_bd)
         self.items = []
         self.__pages = 0
+        self.show_count_recors()
 
     @property
     def completed_pages(self):
@@ -338,8 +339,12 @@ class Main(MainWindow):
         Сохранение в базе даннх
         :return:
         """
+        # Сохранение записей в базу данных
         parse_items = self.pr.items
         self.sql.add_items_to_table(parse_items)
+        # Вывод количества записей
+        self.show_count_recors()
+        # Вывод в таблицу записей
         self.show_all_items()
 
     def show_all_items(self):
@@ -356,8 +361,16 @@ class Main(MainWindow):
         """
         self.show_table(self.sql.get_items(table="new_items"))
 
+    def show_count_recors(self):
+        """
+        Отображение на метке общего количества записей в таблице
+        :return: None
+        """
+        count = self.sql.get_count_records()
+        self.count_records.setText(f"Количество записей: {count}")
+
     def closeEvent(self, a0) -> None:
-        pass
+        self.sql.close_bd()
 
 
 if __name__ == '__main__':
