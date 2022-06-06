@@ -311,10 +311,14 @@ class Main(MainWindow):
         self.pr = ParserSite(self)
         self.sql = MySql()
         self.button2.clicked.connect(self.start_parsing)
+        self.button_save_keys.clicked.connect(self.save_key_from_table)
+        self.button_reload.clicked.connect(self.load_key_from_bd)
+        self.button_clear_keys.clicked.connect(self.clear_key_in_bd)
         self.parse_thread.finished.connect(self.save_bd)
         self.items = []
         self.__pages = 0
         self.show_count_recors()
+        self.load_key_from_bd()
 
     @property
     def completed_pages(self):
@@ -368,6 +372,30 @@ class Main(MainWindow):
         """
         count = self.sql.get_count_records()
         self.count_records.setText(f"Количество записей: {count}")
+
+    def save_key_from_table(self):
+        """
+        Сохранение поисковых запросов в таблицу базы данных
+        :return:
+        """
+        keys = self.keys_text.toPlainText()
+        keys = keys.split(sep='\n')
+        records = [(key, ) for key in keys]
+        self.sql.save_search_key(records)
+
+    def load_key_from_bd(self):
+        """
+        Загрузка в таблицу поисковых фраз из базы данных
+        :return:
+        """
+        self.keys_text.clear()
+        records = self.sql.get_search_key()
+        for item in records:
+            self.keys_text.insertPlainText(item[0] + "\n")
+
+    def clear_key_in_bd(self):
+        self.keys_text.clear()
+        self.sql.clear_table(name_table='search_key')
 
     def closeEvent(self, a0) -> None:
         self.sql.close_bd()

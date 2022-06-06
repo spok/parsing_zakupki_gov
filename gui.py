@@ -1,7 +1,8 @@
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QCheckBox, QLineEdit, QLabel,
-                             QMenuBar, QMenu, QFileDialog, QPushButton, QLabel, QLCDNumber, QComboBox,
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QTabWidget, QCheckBox, QLineEdit, QLabel,
+                             QMenuBar, QMenu, QFileDialog, QPushButton, QLabel, QLCDNumber, QComboBox, QTextEdit,
                              QSizePolicy, QTableWidget, QTableWidgetItem, QGroupBox, QPlainTextEdit)
-from PyQt5.QtCore import Qt, QRect, QSize
+from PyQt5.QtCore import (Qt, QRect, QSize)
+from PyQt5.QtGui import QFont
 
 
 class NameText(QPlainTextEdit):
@@ -41,14 +42,22 @@ class MainWindow(QWidget):
         self.to_exit = self.file_menu.addAction('Выход')
         self.menu.addMenu(self.file_menu)
         # Компановщики основного окна
-        self.vbox = QVBoxLayout()
+        self.vbox = QVBoxLayout(self)
+        self.vbox_tab1 = QVBoxLayout()
+        self.vbox_tab2 = QVBoxLayout()
         self.hbox = QHBoxLayout()
+        self.tab_widget = QTabWidget()
+        self.tab_1 = QWidget()
+        self.tab_2 = QWidget()
+        self.tab_widget.addTab(self.tab_1, "База данных")
+        self.tab_widget.addTab(self.tab_2, "Запросы")
+
         # Область управления временем запуска парсинга
         self.grid1 = QGridLayout()
         self.group_job = QGroupBox("Запуск сканирования")
         self.button1 = QPushButton('Таймер\nВЫКЛ')
         self.button1.setSizePolicy(sizePolicy)
-        self.button1.setFixedSize(QSize(100, 100))
+        self.button1.setFixedSize(QSize(60, 60))
         self.button2 = QPushButton('Ручной запуск')
         self.countdown = QLCDNumber(5)
         self.countdown.display(120)
@@ -78,7 +87,7 @@ class MainWindow(QWidget):
         self.vbox_2.addWidget(self.button_search)
         self.group_search.setLayout(self.vbox_2)
         # Область настройки вывода в таблицу
-        self.group = QGroupBox('Вывод результата')
+        self.group = QGroupBox('База данных')
         self.vbox_3 = QVBoxLayout()
         self.combo = QComboBox()
         self.combo.addItem('Все новые активные')
@@ -86,7 +95,7 @@ class MainWindow(QWidget):
         self.combo.addItem('Все активные')
         self.combo.addItem('Все')
         self.show_target = QCheckBox("соответсвующие запросам")
-        self.button_show = QPushButton("Вывести результат")
+        self.button_show = QPushButton("Вывести записи")
         self.vbox_3.addWidget(self.combo)
         self.vbox_3.addWidget(self.show_target)
         self.vbox_3.addWidget(self.button_show)
@@ -105,15 +114,33 @@ class MainWindow(QWidget):
         self.bottom_panel.addWidget(self.status_label)
         self.bottom_panel.addStretch(0)
         self.bottom_panel.addWidget(self.count_records)
+        # вторая вкладка с запросами
+        self.label_keys = QLabel("Ключевые слова для выбора контрактов")
+        self.keys_text = QTextEdit()
+        self.keys_text.setFont(QFont("Times", 12, QFont.Bold))
+        self.keys_text.setLineWrapMode(0)
+        self.hbox_button = QHBoxLayout()
+        self.button_save_keys = QPushButton("Сохранить изменения")
+        self.button_reload = QPushButton("Отменить изменения")
+        self.button_clear_keys = QPushButton("Очистить ключевые слова")
+        self.hbox_button.addWidget(self.button_save_keys)
+        self.hbox_button.addWidget(self.button_reload)
+        self.hbox_button.addWidget(self.button_clear_keys)
+        self.vbox_tab2.addWidget(self.label_keys)
+        self.vbox_tab2.addWidget(self.keys_text)
+        self.vbox_tab2.addLayout(self.hbox_button)
+
         # Настройка размещения компонентов
         self.hbox.addWidget(self.group_job)
         self.hbox.addWidget(self.group_search)
         self.hbox.addWidget(self.group)
+        self.vbox_tab1.addLayout(self.hbox)
+        self.vbox_tab1.addWidget(self.table)
+        self.vbox_tab1.addLayout(self.bottom_panel)
         self.vbox.addSpacing(20)
-        self.vbox.addLayout(self.hbox)
-        self.vbox.addWidget(self.table)
-        self.vbox.addLayout(self.bottom_panel)
-        self.setLayout(self.vbox)
+        self.vbox.addWidget(self.tab_widget)
+        self.tab_1.setLayout(self.vbox_tab1)
+        self.tab_2.setLayout(self.vbox_tab2)
 
     def show_table2(self, items: list):
         """

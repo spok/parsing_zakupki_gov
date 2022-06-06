@@ -51,6 +51,20 @@ class MySql:
         if self.conn:
             self.conn.close()
 
+    def clear_table(self, name_table: str):
+        """
+        Очистка таблицы от записей
+        :param name_table: наименование таблицы
+        :return: None
+        """
+        try:
+            sql_select_query = f"DELETE FROM {name_table};"
+            self.cursor.execute(sql_select_query)
+        except sqlite3.Error as error:
+            print(f"Ошибка при удалении все значений таблицы {name_table}", error)
+        finally:
+            self.conn.commit()
+
     @staticmethod
     def get_tuple_from_keys(item: dict, keys: tuple) -> tuple:
         """
@@ -134,11 +148,7 @@ class MySql:
             self.connect_to_bd()
         try:
             # Очистка таблицы с новыми объявлениями
-            try:
-                sql_select_query = """DELETE FROM new_items;"""
-                self.cursor.execute(sql_select_query)
-            finally:
-                self.conn.commit()
+            self.clear_table(name_table="new_items")
             # Сохранение в базе данных
             for item in items:
                 self.add_to_table(item)
@@ -162,6 +172,41 @@ class MySql:
                 sql_select_query = f'SELECT * FROM {table} WHERE status = "{status}";'
             self.cursor.execute(sql_select_query)
             records = self.cursor.fetchall()
+        except sqlite3.Error as error:
+            print(f"Ошибка чтения из таблицы {table}", error)
+        return records
+
+    def get_search_key(self) -> list:
+        """
+        Чтение из базы данных ключевых фраз
+        :return: список записей с поисковыми ключами
+        """
+        records = []
+        if not self.conn:
+            self.connect_to_bd()
+        try:
+            sql_select_query = f"SELECT * FROM search_key;"
+            self.cursor.execute(sql_select_query)
+            records = self.cursor.fetchall()
+        except sqlite3.Error as error:
+            print("Ошибка чтения из таблицы search_key", error)
+        return records
+
+    def save_search_key(self, records: list):
+        """
+        Сохранение в базе данных поисковых фраз
+        :param records: список из поисковых фраз
+        :return:
+        """
+        if not self.conn:
+            self.connect_to_bd()
+        try:
+            # Очистка таблицы с новыми объявлениями
+            self.clear_table(name_table="search_key")
+            # Сохранение в базе данных
+            command = """INSERT INTO search_key (name) VALUES (?);"""
+            self.cursor.executemany(command, records)
+        except sqlite3.Error as error:
+            print("Ошибка записи в таблицу search_key", error)
         finally:
             self.conn.commit()
-        return records
