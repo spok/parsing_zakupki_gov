@@ -51,7 +51,6 @@ class MainWindow(QWidget):
         self.tab_2 = QWidget()
         self.tab_widget.addTab(self.tab_1, "База данных")
         self.tab_widget.addTab(self.tab_2, "Запросы")
-
         # Область управления временем запуска парсинга
         self.grid1 = QGridLayout()
         self.group_job = QGroupBox("Запуск сканирования")
@@ -60,7 +59,6 @@ class MainWindow(QWidget):
         self.button1.setFixedSize(QSize(60, 60))
         self.button2 = QPushButton('Ручной запуск')
         self.countdown = QLCDNumber(5)
-        self.countdown.display(120)
         self.countdown.setSegmentStyle(QLCDNumber.Flat)
         self.grid1.addWidget(self.countdown, 0, 0)
         self.grid1.addWidget(self.button2, 1, 0)

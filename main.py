@@ -310,6 +310,7 @@ class Main(MainWindow):
         self.parse_thread = ParseThread(self)
         self.pr = ParserSite(self)
         self.sql = MySql()
+        self.button1.clicked.connect(self.start_timer)
         self.button2.clicked.connect(self.start_parsing)
         self.button_save_keys.clicked.connect(self.save_key_from_table)
         self.button_reload.clicked.connect(self.load_key_from_bd)
@@ -317,6 +318,10 @@ class Main(MainWindow):
         self.parse_thread.finished.connect(self.save_bd)
         self.items = []
         self.__pages = 0
+        self.timer_id = 0
+        self.step_time = 1
+        self.remained_time = 0
+        self.run_timer = False
         self.show_count_recors()
         self.load_key_from_bd()
 
@@ -328,6 +333,25 @@ class Main(MainWindow):
     def completed_pages(self, count):
         self.__pages += count
         self.status_label.setText(f'Количество обработанных страниц: {self.__pages} из {self.pr.count_pages}')
+
+    def start_timer(self):
+        """
+        Запуск таймера для выполнения парсинга
+        :return:
+        """
+        if not self.run_timer:
+            self.run_timer = True
+            self.timer_id = self.startTimer(1000, timerType=Qt.CoarseTimer)
+            self.button1.setText("Таймер\nВКЛ")
+            self.button1.setStyleSheet('background: rgb(255,0,0);')
+        else:
+            self.killTimer(self.timer_id)
+            self.timer_id = 0
+            self.run_timer = False
+            self.button1.setText("Таймер\nВЫКЛ")
+            self.button1.setStyleSheet('background: rgb(225,225,225);')
+            self.setWindowTitle(f"Таймер выключен")
+        self.remained_time = self.step_time * 60
 
     def start_parsing(self):
         """
@@ -396,6 +420,19 @@ class Main(MainWindow):
     def clear_key_in_bd(self):
         self.keys_text.clear()
         self.sql.clear_table(name_table='search_key')
+
+    def timerEvent(self, event) -> None:
+        """
+        Обработка события таймера
+        :param event:
+        :return:
+        """
+        self.countdown.display(str(self.remained_time))
+        self.setWindowTitle(f"Осталось {str(self.remained_time)} сек.")
+        self.remained_time -= 1
+        if self.remained_time < 0:
+            self.remained_time = self.step_time * 60
+            self.start_parsing()
 
     def closeEvent(self, a0) -> None:
         self.sql.close_bd()

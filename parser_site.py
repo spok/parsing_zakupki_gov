@@ -95,7 +95,7 @@ class ParserSite:
         return href
 
     @staticmethod
-    def get_field_text(quote: str, atrib1: str, atrib2: str) -> str:
+    def get_field_text(quote, atrib1: str, atrib2: str) -> str:
         """
         Чтение данных из блока html
         :param quote: блок html страницы
@@ -114,7 +114,7 @@ class ParserSite:
             return None
 
     @staticmethod
-    def get_fields(quote: str, atrib1: str, atrib2: str) -> list:
+    def get_fields(quote, atrib1: str, atrib2: str) -> list:
         """
         Получение списка полей
         :param quote: блок html страницы
