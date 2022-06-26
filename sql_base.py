@@ -1,5 +1,5 @@
 import sqlite3
-import pandas as pd
+import re
 
 
 class MySql:
@@ -42,6 +42,56 @@ class MySql:
         command = """CREATE TABLE if not exists search_key (name TEXT NOT NULL);"""
         self.cursor.execute(command)
         self.conn.commit()
+        # Таблица с настройками программы
+        command = """CREATE TABLE if not exists settings (name TEXT NOT NULL, value TEXT);"""
+        self.cursor.execute(command)
+        self.conn.commit()
+
+    def save_settings(self, name: str, value: str):
+        """
+        Сохранение настройки программы в таблице
+        :param name: название параметра
+        :param value: текстовое значение параметра
+        :return: None
+        """
+        if isinstance(name, str) and isinstance(value, str):
+            # Проверка на наличие записанного ранее значения
+            check = self.load_settings(name)
+            if check:
+                try:
+                    command = "UPDATE settings SET value = ? WHERE name = ?"
+                    self.cursor.execute(command, (value, name))
+                except sqlite3.Error as error:
+                    print(f"Ошибка при обновлении значения в таблице settings", error)
+                finally:
+                    self.conn.commit()
+            else:
+                try:
+                    command = """INSERT INTO settings (name, value) VALUES(?, ?);"""
+                    self.cursor.execute(command, (name, value))
+                except sqlite3.Error as error:
+                    print(f"Ошибка при добавлении значения в таблицу settings", error)
+                finally:
+                    self.conn.commit()
+        else:
+            print("Значения должны быть строкового типа")
+
+    def load_settings(self, name: str) -> str:
+        """
+        Загрузка параметра из таблицы
+        :param name: название параметра строкового типа
+        :return: str
+        """
+        try:
+            sql_select_query = """SELECT * FROM settings WHERE name = ?;"""
+            self.cursor.execute(sql_select_query, (name, ))
+            records = self.cursor.fetchone()
+        except sqlite3.Error as error:
+            print(f"Ошибка при чтении данных из таблицы", error)
+        if records:
+            return records[1]
+        else:
+            return None
 
     def close_bd(self):
         """
@@ -64,6 +114,26 @@ class MySql:
             print(f"Ошибка при удалении все значений таблицы {name_table}", error)
         finally:
             self.conn.commit()
+
+    @staticmethod
+    def search_words(text: str, pattern: str) -> bool:
+        """
+        Определение соответствия ключевым словам
+        :param text: название объявления строкового типа
+        :param pattern: ключевые фразы строкового типа
+        :return: True или False
+        """
+        if text and pattern:
+            words = [w for w in pattern.split() if len(w) > 0 and w[0] not in "-"]
+            words_not = [w[1:] for w in pattern.split() if len(w) > 0 and w[0] == "-"]
+            result = [re.search(r'(\b%s\w*\b)' % re.escape(word), text, re.I) for word in words]
+            result2 = [re.search(r'(\b%s\w*\b)' % re.escape(word), text, re.I) for word in words_not]
+            if all(result) and not any(result2):
+                return True
+            else:
+                return False
+        else:
+            return False
 
     @staticmethod
     def get_tuple_from_keys(item: dict, keys: tuple) -> tuple:
@@ -110,9 +180,21 @@ class MySql:
             count = self.cursor.fetchone()[0]
         return count
 
+    def get_count_new_records(self) -> int:
+        """
+        Возвращает общее количество записей в базе данных
+        :return: общее количество записей в базе данных
+        """
+        count = 0
+        if self.conn:
+            sql_query = """SELECT count(*) FROM new_items;"""
+            self.cursor.execute(sql_query)
+            count = self.cursor.fetchone()[0]
+        return count
+
     def add_to_table(self, item: dict):
         """
-        Добавление элемента в базу данных
+        Добавление одного элемента в базу данных
         :param item: словарь с записями
         :return: None
         """
@@ -140,15 +222,13 @@ class MySql:
 
     def add_items_to_table(self, items: list):
         """
-        Добавление элементов в базу данных
+        Добавление нескольких элементов в базу данных
         :param items: список словарей
         :return: None
         """
         if not self.conn:
             self.connect_to_bd()
         try:
-            # Очистка таблицы с новыми объявлениями
-            self.clear_table(name_table="new_items")
             # Сохранение в базе данных
             for item in items:
                 self.add_to_table(item)
@@ -166,15 +246,132 @@ class MySql:
         if not self.conn:
             self.connect_to_bd()
         try:
-            if status == "":
-                sql_select_query = f"SELECT * FROM {table};"
+            if table == "all_items":
+                if status == "":
+                    sql_select_query = f"SELECT * FROM {table};"
+                else:
+                    sql_select_query = f'SELECT * FROM {table} WHERE status = "{status}";'
             else:
-                sql_select_query = f'SELECT * FROM {table} WHERE status = "{status}";'
+                if status == "":
+                    sql_select_query = f"""SELECT a.id, a.status, a.name, a.price, a.placed, a.updated, 
+                                       a.ending, a.customer, a.url FROM all_items AS a JOIN new_items As n 
+                                       ON n.id = a.id ;"""
+                else:
+                    sql_select_query = f"""SELECT a.id, a.status, a.name, a.price, a.placed, a.updated, a.ending, 
+                                           a.customer, a.url FROM all_items AS a JOIN new_items As n ON n.id = a.id 
+                                           WHERE a.status = '{status}';"""
             self.cursor.execute(sql_select_query)
             records = self.cursor.fetchall()
         except sqlite3.Error as error:
             print(f"Ошибка чтения из таблицы {table}", error)
         return records
+
+    def filter_items(self, items: list, status: str = "", filter: bool = False) -> list:
+        """
+        Фильтрация списка объявлений на соответствие запросам и статуса
+        :param items: список кортежей объявления
+        :param status: строка, статус для фильтрации записей
+        :return: список объявлений
+        """
+        filter_records = []
+        filter_keys = self.get_search_key()
+        for i in items:
+            if i[2]:
+                find_key = True
+                # Проверка на соответствие записи ключевым словам
+                if filter and len(filter_keys) > 0:
+                    find_key = False
+                    for key in filter_keys:
+                        find_key = self.search_words(i[2], key[0])
+                        if find_key:
+                            break
+                # Проверка нужного статуса у записи
+                if i[1] == status and find_key:
+                    filter_records.append(i)
+                elif status == "" and find_key:
+                    filter_records.append(i)
+        return filter_records
+
+    def search_items(self, items: list, request: str, column: str) -> list:
+        """
+        Фильтрация списка объявлений на соответствие запросам и статуса
+        :param items: список кортежей объявления
+        :param status: строка, статус для фильтрации записей
+        :return: список объявлений
+        """
+        filter_records = []
+        if len(request):
+            for i in items:
+                # Поиск в названии объявления
+                if column == "name":
+                    # Проверка на соответствие записи ключевым словам
+                    find_key = False
+                    if len(request) > 0:
+                        find_key = self.search_words(i[2], request)
+                    if find_key:
+                        filter_records.append(i)
+                # Поиск в статусе объявления
+                if column == "status":
+                    # Проверка на соответствие записи ключевым словам
+                    find_key = False
+                    if len(request) > 0:
+                        find_key = self.search_words(i[1], request)
+                    if find_key:
+                        filter_records.append(i)
+                # Поиск в заказчике объявления
+                if column == "customer":
+                    # Проверка на соответствие записи ключевым словам
+                    find_key = False
+                    if len(request) > 0:
+                        find_key = self.search_words(i[7], request)
+                    if find_key:
+                        filter_records.append(i)
+                # Поиск в идентификаторе объявления
+                if column == "id":
+                    # Проверка на соответствие записи ключевым словам
+                    find_key = False
+                    if len(request) > 0:
+                        find_key = self.search_words(i[0], request)
+                    if find_key:
+                        filter_records.append(i)
+                # Поиск по цене
+                if column == "price_more" or column == "price_less":
+                    try:
+                        search_price = float(request)
+                    except:
+                        return []
+                    if not self.conn:
+                        self.connect_to_bd()
+                    if column == "price_more":
+                        sql_select_query = f'SELECT * FROM all_table WHERE price > "{search_price}";'
+                    if column == "price_less":
+                        sql_select_query = f'SELECT * FROM all_table WHERE price < "{search_price}";'
+                    self.cursor.execute(sql_select_query)
+                    filter_records = self.cursor.fetchall()
+        return filter_records
+
+    def get_items_on_request(self, request: str) -> list:
+        """
+        Чтение данных с базы соответствующих запросу
+        :param request: строковая переменная с ключевыми словами
+        :return: список кортежей
+        """
+        records = []
+        if not self.conn:
+            self.connect_to_bd()
+        try:
+            sql_select_query = f'SELECT * FROM all_items;'
+            self.cursor.execute(sql_select_query)
+            all_records = self.cursor.fetchall()
+        except sqlite3.Error as error:
+            print(f"Ошибка чтения из таблицы", error)
+        if len(all_records):
+            for elem in all_records:
+                if isinstance(elem[2], str) and request in elem[2].lower():
+                    records.append(elem)
+            return records
+        else:
+            return []
 
     def get_search_key(self) -> list:
         """
@@ -210,3 +407,4 @@ class MySql:
             print("Ошибка записи в таблицу search_key", error)
         finally:
             self.conn.commit()
+

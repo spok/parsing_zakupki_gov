@@ -1,6 +1,6 @@
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QTabWidget, QCheckBox, QLineEdit, QLabel,
+from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QTabWidget, QLineEdit, QLabel,
                              QMenuBar, QMenu, QFileDialog, QPushButton, QLabel, QLCDNumber, QComboBox, QTextEdit,
-                             QSizePolicy, QTableWidget, QTableWidgetItem, QGroupBox, QPlainTextEdit)
+                             QSizePolicy, QTableWidget, QTableWidgetItem, QGroupBox, QPlainTextEdit, QStatusBar)
 from PyQt5.QtCore import (Qt, QRect, QSize)
 from PyQt5.QtGui import QFont
 
@@ -27,22 +27,39 @@ class NameText(QPlainTextEdit):
         self.setFixedHeight(h)
 
 
-class MainWindow(QWidget):
+class MainWindow(QMainWindow):
     hor_header = ['№ закупки', 'Название', 'Стоимость, р.', 'Статус', 'Дата окончания']
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.central_widget = QWidget()
         self.setWindowTitle('Парсинг zakupki.gov.ru')
         self.resize(800, 600)
         sizePolicy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.button_del_new = QPushButton("Очистить список новых объявлений")
         # Настройка меню
-        self.menu = QMenuBar(self)
+        self.menu = QMenuBar()
         self.file_menu = QMenu('Файл')
         self.save_base = self.file_menu.addAction('Экспорт базы данных в Excel')
+        self.save_key = self.file_menu.addAction('Экспорт ключевых слов в Excel')
         self.to_exit = self.file_menu.addAction('Выход')
+        self.settings_menu = QMenu('Настройки')
+        self.clear_new = self.settings_menu.addAction('Очистка таблицы новых объявлений')
+        self.clear_all = self.settings_menu.addAction('Очистка таблицы всех объявлений')
         self.menu.addMenu(self.file_menu)
+        self.menu.addMenu(self.settings_menu)
+        self.setMenuBar(self.menu)
+        # Добавление нижней информационной панели
+        self.status_bar = QStatusBar()
+        self.label_new_records = QLabel()
+        self.label_new_records.setText('Новых записей: 0')
+        self.status_bar.addPermanentWidget(self.label_new_records)
+        self.label_count_records = QLabel()
+        self.label_count_records.setText('Общее количество записей: 0')
+        self.status_bar.addPermanentWidget(self.label_count_records)
+        self.setStatusBar(self.status_bar)
         # Компановщики основного окна
-        self.vbox = QVBoxLayout(self)
+        self.vbox = QVBoxLayout()
         self.vbox_tab1 = QVBoxLayout()
         self.vbox_tab2 = QVBoxLayout()
         self.hbox = QHBoxLayout()
@@ -53,49 +70,52 @@ class MainWindow(QWidget):
         self.tab_widget.addTab(self.tab_2, "Запросы")
         # Область управления временем запуска парсинга
         self.grid1 = QGridLayout()
-        self.group_job = QGroupBox("Запуск сканирования")
-        self.button1 = QPushButton('Таймер\nВЫКЛ')
-        self.button1.setSizePolicy(sizePolicy)
-        self.button1.setFixedSize(QSize(60, 60))
-        self.button2 = QPushButton('Ручной запуск')
-        self.countdown = QLCDNumber(5)
-        self.countdown.setSegmentStyle(QLCDNumber.Flat)
-        self.grid1.addWidget(self.countdown, 0, 0)
-        self.grid1.addWidget(self.button2, 1, 0)
-        self.grid1.addWidget(self.button1, 0, 1, 2, 1)
+        self.group_job = QGroupBox("Запуск")
+        self.button_timer = QPushButton('Таймер ВЫКЛ')
+        self.button_manual_run = QPushButton('Ручной запуск')
+        self.lsd_countdown = QLCDNumber(5)
+        self.lsd_countdown.setSegmentStyle(QLCDNumber.Flat)
+        self.combo_time_step = QComboBox()
+        self.combo_time_step.addItem("5 минут", userData=5)
+        self.combo_time_step.addItem("15 минут", userData=15)
+        self.combo_time_step.addItem("30 минут", userData=30)
+        self.combo_time_step.addItem("60 минут", userData=60)
+        self.combo_time_step.addItem("90 минут", userData=90)
+        self.combo_time_step.addItem("120 минут", userData=120)
+        self.grid1.addWidget(self.lsd_countdown, 0, 0)
+        self.grid1.addWidget(self.combo_time_step, 1, 0)
+        self.grid1.addWidget(self.button_timer, 0, 1)
+        self.grid1.addWidget(self.button_manual_run, 1, 1)
         self.group_job.setLayout(self.grid1)
         # Область поиска контрактов по запросам
-        self.group_search = QGroupBox("Поиск по контрактам")
+        self.group_search = QGroupBox("Поиск")
         self.vbox_2 = QVBoxLayout()
         self.hbox_2 = QHBoxLayout()
-        self.search_text = QLineEdit()
-        self.label_source = QLabel("Искать в:")
+        self.edit_search_text = QLineEdit()
         self.combo_source = QComboBox()
-        self.combo_source.addItem("названии контрактов")
-        self.combo_source.addItem("идентификаторе")
-        self.combo_source.addItem("заказчике")
-        self.combo_source.addItem("статусе")
-        self.combo_source.addItem("стоимостью больше")
-        self.combo_source.addItem("стоимостью меньше")
-        self.hbox_2.addWidget(self.label_source)
-        self.hbox_2.addWidget(self.combo_source)
+        self.combo_source.addItem("в названии контрактов", userData="name")
+        self.combo_source.addItem("в идентификаторе", userData="id")
+        self.combo_source.addItem("в наименовании заказчика", userData="customer")
+        self.combo_source.addItem("в статусе", userData="status")
+        self.combo_source.addItem("стоимостью больше", userData="price_more")
+        self.combo_source.addItem("стоимостью меньше", userData="price_less")
         self.button_search = QPushButton("Искать")
-        self.vbox_2.addWidget(self.search_text)
+        self.vbox_2.addWidget(self.edit_search_text)
+        self.hbox_2.addWidget(self.combo_source)
+        self.hbox_2.addWidget(self.button_search)
         self.vbox_2.addLayout(self.hbox_2)
-        self.vbox_2.addWidget(self.button_search)
         self.group_search.setLayout(self.vbox_2)
         # Область настройки вывода в таблицу
-        self.group = QGroupBox('База данных')
+        self.group = QGroupBox('Вывод в таблицу')
         self.vbox_3 = QVBoxLayout()
-        self.combo = QComboBox()
-        self.combo.addItem('Все новые активные')
-        self.combo.addItem('Все новые')
-        self.combo.addItem('Все активные')
-        self.combo.addItem('Все')
-        self.show_target = QCheckBox("соответсвующие запросам")
+        self.combo_what_show = QComboBox()
+        self.combo_what_show.addItem('Новые активные соответствующие запросам')
+        self.combo_what_show.addItem('Новые активные')
+        self.combo_what_show.addItem('Все активные соответствующие запросам')
+        self.combo_what_show.addItem('Все активные')
+        self.combo_what_show.addItem('Все')
         self.button_show = QPushButton("Вывести записи")
-        self.vbox_3.addWidget(self.combo)
-        self.vbox_3.addWidget(self.show_target)
+        self.vbox_3.addWidget(self.combo_what_show)
         self.vbox_3.addWidget(self.button_show)
         self.group.setLayout(self.vbox_3)
         # область вывода результата парсинга сайта
@@ -103,15 +123,6 @@ class MainWindow(QWidget):
         self.table.setColumnCount(5)
         self.table.setHorizontalHeaderLabels(self.hor_header)
         self.resize_table()
-        # информационная область внизу экрана
-        self.bottom_panel = QHBoxLayout()
-        self.status_label = QLabel()
-        self.status_label.setText('Количество обработанных страниц: 0 из 0')
-        self.count_records = QLabel()
-        self.count_records.setText('Количество записей: 0')
-        self.bottom_panel.addWidget(self.status_label)
-        self.bottom_panel.addStretch(0)
-        self.bottom_panel.addWidget(self.count_records)
         # вторая вкладка с запросами
         self.label_keys = QLabel("Ключевые слова для выбора контрактов")
         self.keys_text = QTextEdit()
@@ -127,18 +138,18 @@ class MainWindow(QWidget):
         self.vbox_tab2.addWidget(self.label_keys)
         self.vbox_tab2.addWidget(self.keys_text)
         self.vbox_tab2.addLayout(self.hbox_button)
-
         # Настройка размещения компонентов
         self.hbox.addWidget(self.group_job)
         self.hbox.addWidget(self.group_search)
         self.hbox.addWidget(self.group)
         self.vbox_tab1.addLayout(self.hbox)
         self.vbox_tab1.addWidget(self.table)
-        self.vbox_tab1.addLayout(self.bottom_panel)
-        self.vbox.addSpacing(20)
+        self.vbox_tab1.addWidget(self.button_del_new)
         self.vbox.addWidget(self.tab_widget)
         self.tab_1.setLayout(self.vbox_tab1)
         self.tab_2.setLayout(self.vbox_tab2)
+        self.central_widget.setLayout(self.vbox)
+        self.setCentralWidget(self.central_widget)
 
     def show_table2(self, items: list):
         """
@@ -175,40 +186,42 @@ class MainWindow(QWidget):
         """
         self.table.clear()
         self.table.setHorizontalHeaderLabels(self.hor_header)
-        self.table.setRowCount(len(items))
-        sizepolicy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        indexs = [0, 2, 3, 1, 6]
-        for i, item in enumerate(items):
-            for j, index in enumerate(indexs):
-                if type(item[index]) == str:
-                    if index == 2:
-                        elem = NameText(item[index])
-                        self.table.setCellWidget(i, j, elem)
+        if items:
+            self.table.setRowCount(len(items))
+            sizepolicy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            indexs = [0, 2, 3, 1, 6]
+            for i, item in enumerate(items):
+                for j, index in enumerate(indexs):
+                    if type(item[index]) == str:
+                        if index == 2:
+                            elem = NameText(item[index])
+                            self.table.setCellWidget(i, j, elem)
+                        else:
+                            elem = QTableWidgetItem(item[index])
+                            self.table.setItem(i, j, elem)
                     else:
-                        elem = QTableWidgetItem(item[index])
+                        elem = QTableWidgetItem(str(item[index]))
                         self.table.setItem(i, j, elem)
-                else:
-                    elem = QTableWidgetItem(str(item[index]))
-                    self.table.setItem(i, j, elem)
-        rect = self.rect()
-        self.resize(rect.width(), rect.height() - 1)
+            rect = self.rect()
+            self.resize(rect.width(), rect.height() - 1)
 
     def resize_table(self):
         """Изменение размеров таблицы"""
-        # Изменение ширины столбцов
-        w_1 = round(self.table.width() * 0.1)
-        if w_1 < 140:
-            w_1 = 140
-        w_2 = self.table.width() - w_1 * 4 - 20
-        self.table.setColumnWidth(0, w_1)
-        self.table.setColumnWidth(1, w_2)
-        self.table.setColumnWidth(2, w_1)
-        self.table.setColumnWidth(3, w_1)
-        # Изменение высоты строк под высоту текста
-        for i in range(self.table.rowCount()):
-            elem = self.table.cellWidget(i, 1)
-            if elem:
-                self.table.setRowHeight(i, elem.height() + 5)
+        if self.table.rowCount():
+            # Изменение ширины столбцов
+            w_1 = round(self.table.width() * 0.1)
+            if w_1 < 140:
+                w_1 = 140
+            w_2 = self.table.width() - w_1 * 4 - 20
+            self.table.setColumnWidth(0, w_1)
+            self.table.setColumnWidth(1, w_2)
+            self.table.setColumnWidth(2, w_1)
+            self.table.setColumnWidth(3, w_1)
+            # Изменение высоты строк под высоту текста
+            for i in range(self.table.rowCount()):
+                elem = self.table.cellWidget(i, 1)
+                if elem:
+                    self.table.setRowHeight(i, elem.height() + 5)
 
     def resizeEvent(self, event) -> None:
         """Обработка изменения размеров окна"""
