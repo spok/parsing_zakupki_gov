@@ -1,4 +1,5 @@
 import sqlite3
+import openpyxl
 import re
 
 
@@ -192,7 +193,7 @@ class MySql:
             count = self.cursor.fetchone()[0]
         return count
 
-    def add_to_table(self, item: dict):
+    def add_dict_to_table(self, item: dict):
         """
         Добавление одного элемента в базу данных
         :param item: словарь с записями
@@ -220,6 +221,32 @@ class MySql:
                             ending = ?, customer = ?, url = ? where id = ?;"""
                 self.cursor.execute(command, self.get_tuple_from_keys(item, keys))
 
+    def add_tuple_to_table(self, item: tuple):
+        """
+        Добавление одного элемента в базу данных
+        :param item: словарь с записями
+        :return: None
+        """
+        if self.cursor:
+            # проверка наличия существующего элемента в базе
+            sql_select_query = """select * from all_items where id = ?;"""
+            self.cursor.execute(sql_select_query, (item[0],))
+            records = self.cursor.fetchall()
+            if len(records) == 0:
+                # при отсутствии элементов с таким номер добавляеться запись в основную таблицу
+                command = """INSERT INTO all_items (id, status, name, price, placed, updated, ending, 
+                             customer, url, target) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?);"""
+                self.cursor.execute(command, item)
+                # Добавление в таблицу с новыми заявками
+                command = """INSERT INTO new_items (id) VALUES(?);"""
+                self.cursor.execute(command, (item[0], ))
+            else:
+                # обновление существующей записи
+                command = """UPDATE all_items SET status = ?, name = ?, price = ?, placed = ?, updated = ?, 
+                            ending = ?, customer = ?, url = ? where id = ?;"""
+                new = (item[1], item[2], item[3], item[4], item[5], item[6], item[7], item[8], item[9], item[0])
+                self.cursor.execute(command, new)
+
     def add_items_to_table(self, items: list):
         """
         Добавление нескольких элементов в базу данных
@@ -231,7 +258,7 @@ class MySql:
         try:
             # Сохранение в базе данных
             for item in items:
-                self.add_to_table(item)
+                self.add_dict_to_table(item)
         finally:
             self.conn.commit()
 
@@ -408,3 +435,90 @@ class MySql:
         finally:
             self.conn.commit()
 
+    def export_table(self, fname: str):
+        """
+        Экспорт таблицы с записями в формат Excel
+        :param fname: путь к файлу
+        :return: None
+        """
+        records = self.get_items()
+        if records:
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            i = 1
+            # Вывод заголовка таблицы
+            header = ["id", "status", "name", "price", "placed", "updated", "ending", "customer", "url",
+                      "target"]
+            for j, h in enumerate(header):
+                ws.cell(i, j+1, h)
+            i += 1
+            # Вывод записей из таблицы
+            for record in records:
+                for j, item in enumerate(record):
+                    ws.cell(i, j + 1, item)
+                i += 1
+            # Сохранение файла
+            wb.save(fname.strip())
+
+    def export_key(self, fname: str):
+        """
+        Экспорт запросов в формат Excel
+        :param fname: путь к файлу
+        :return: None
+        """
+        records = self.get_search_key()
+        if records:
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            i = 1
+            # Вывод заголовка таблицы
+            header = ["name"]
+            for j, h in enumerate(header):
+                ws.cell(i, j+1, h)
+            i += 1
+            # Вывод записей из таблицы
+            for record in records:
+                for j, item in enumerate(record):
+                    ws.cell(i, j + 1, item)
+                i += 1
+            # Сохранение файла
+            wb.save(fname.strip())
+
+    def import_table(self, fname: str):
+        """
+        Импорт записей из файла Excel
+        :param fname: путь к файлу
+        :return: None
+        """
+        wb = openpyxl.load_workbook(fname)
+        ws = wb.active
+        max_row = ws.max_row
+        records = []
+        for i in range(2, max_row + 1):
+            rec = []
+            for j in range(1, 11):
+                rec.append(ws.cell(i, j).value)
+            records.append(tuple(rec))
+        if not self.conn:
+            self.connect_to_bd()
+        try:
+            # Сохранение в базе данных
+            for item in records:
+                self.add_tuple_to_table(item)
+        finally:
+            self.conn.commit()
+
+    def import_key(self, fname: str):
+        """
+        Импорт из файла Excel ключевых фраз для поиска
+        :param fname: путь к файлу
+        :return: None
+        """
+        wb = openpyxl.load_workbook(fname)
+        ws = wb.active
+        max_row = ws.max_row
+        records = []
+        for i in range(2, max_row + 1):
+            records.append(ws.cell(i, 1).value)
+        records = [(key,) for key in records]
+        self.save_search_key(records)
