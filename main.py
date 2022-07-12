@@ -1,10 +1,10 @@
-import os
 import sys
 from PyQt5.QtWidgets import QApplication
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import Qt, QThread
 from gui import MainWindow
 from parser_site import ParserSite
 from sql_base import *
+import webbrowser
 
 
 class ParseThread(QThread):
@@ -39,8 +39,11 @@ class Main(MainWindow):
         self.import_key.triggered.connect(self.import_key_from_xls)
         self.to_exit.triggered.connect(self.close)
         self.parse_thread.finished.connect(self.save_bd)
+        self.table.doubleClicked.connect(self.open_url)
+        self.table.openAct.triggered.connect(self.open_url)
         self.items = []
         self.__pages = 0
+        self.__count_new_records = 0
         self.timer_id = 0
         data = self.sql.load_settings("time_step")
         if data:
@@ -185,6 +188,8 @@ class Main(MainWindow):
             records = self.sql.get_items(table="new_items")
             if current_typ == 0:
                 records = self.sql.filter_items(records, status="Подача заявок", filter=True)
+                if records:
+                    self.__count_new_records = len(records)
             else:
                 records = self.sql.filter_items(records, status="Подача заявок", filter=False)
         elif current_typ == 2 or current_typ == 3:
@@ -234,10 +239,12 @@ class Main(MainWindow):
 
     def clear_new_in_bd(self):
         self.sql.clear_table(name_table='new_items')
+        self.__count_new_records = 0
 
     def clear_all_in_bd(self):
         self.sql.clear_table(name_table='all_items')
         self.sql.clear_table(name_table='new_items')
+        self.__count_new_records = 0
         # Вывод количества записей
         self.show_count_records()
         # Вывод в таблицу записей
@@ -261,8 +268,25 @@ class Main(MainWindow):
         :return: None
         """
         self.sql.clear_table(name_table='new_items')
+        self.__count_new_records = 0
         self.show_in_table()
         self.show_count_records()
+
+    def open_url(self):
+        """
+        Открыть в браузере ссылку на объявление
+        :return: None
+        """
+        for idx in self.table.selectionModel().selectedIndexes():
+            # Определение строки и идентификатора
+            row_number = idx.row()
+            select_id = self.table.item(row_number, 0).text()
+            # Чтение ссылки на объявление
+            url = self.sql.get_url_from_bd(select_id)
+            try:
+                webbrowser.open_new_tab(url)
+            except:
+                print(f"Ошибка при открытии ссылки {url}")
 
     def timerEvent(self, event) -> None:
         """
@@ -271,7 +295,10 @@ class Main(MainWindow):
         :return:
         """
         self.lsd_countdown.display(str(self.remained_time))
-        self.setWindowTitle(f"Осталось {str(self.remained_time)} сек.")
+        # Отрисовка на иконке количества найденных объявлений
+        self.setWindowIcon(self.generate_icontext(self.__count_new_records))
+        text = f'Осталось {str(self.remained_time)} сек.'
+        self.setWindowTitle(text)
         self.remained_time -= 1
         if self.remained_time < 0:
             self.remained_time = self.step_value * 60

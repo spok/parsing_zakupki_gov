@@ -293,6 +293,23 @@ class MySql:
             print(f"Ошибка чтения из таблицы {table}", error)
         return records
 
+    def get_url_from_bd(self, id: str) -> str:
+        """
+        Чтение ссылки из базы данных по идентификатуро
+        :param id: строковой тип
+        :return: строковой тип
+        """
+        if not self.conn:
+            self.connect_to_bd()
+        try:
+            sql_select_query = f'SELECT * FROM all_items WHERE id = "{id}";'
+            self.cursor.execute(sql_select_query)
+            url = self.cursor.fetchone()[8]
+        except sqlite3.Error as error:
+            print(f"Ошибка чтения из таблицы", error)
+            url = ""
+        return url
+
     def filter_items(self, items: list, status: str = "", filter: bool = False) -> list:
         """
         Фильтрация списка объявлений на соответствие запросам и статуса

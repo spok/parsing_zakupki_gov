@@ -1,8 +1,22 @@
-from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QTabWidget, QLineEdit, QLabel,
+from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QTabWidget, QLineEdit,
                              QMenuBar, QMenu, QFileDialog, QPushButton, QLabel, QLCDNumber, QComboBox, QTextEdit,
-                             QSizePolicy, QTableWidget, QTableWidgetItem, QGroupBox, QPlainTextEdit, QStatusBar)
+                             QSizePolicy, QTableWidget, QTableWidgetItem, QGroupBox, QPlainTextEdit, QStatusBar,
+                             QAbstractItemView, QAction)
 from PyQt5.QtCore import (Qt, QRect, QSize)
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QIcon, QPixmap, QPainter, QContextMenuEvent
+from math import cos, sin, pi
+import copy
+
+
+class MyTable(QTableWidget):
+    def __init__(self):
+        super().__init__()
+        self.contextMenu = QMenu(self)
+        self.openAct = self.contextMenu.addAction("Открыть в браузере")
+
+    def contextMenuEvent(self, event) -> None:
+        self.contextMenu.addAction(self.openAct)
+        action = self.contextMenu.exec_(self.mapToGlobal(event.pos()))
 
 
 class NameText(QPlainTextEdit):
@@ -127,9 +141,10 @@ class MainWindow(QMainWindow):
         self.vbox_3.addWidget(self.button_show)
         self.group.setLayout(self.vbox_3)
         # область вывода результата парсинга сайта
-        self.table = QTableWidget()
+        self.table = MyTable()
         self.table.setColumnCount(5)
         self.table.setHorizontalHeaderLabels(self.hor_header)
+        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.resize_table()
         # вторая вкладка с запросами
         self.label_keys = QLabel("Ключевые слова для выбора контрактов")
@@ -158,6 +173,7 @@ class MainWindow(QMainWindow):
         self.tab_2.setLayout(self.vbox_tab2)
         self.central_widget.setLayout(self.vbox)
         self.setCentralWidget(self.central_widget)
+        self.__angle_icon = 0
 
     def show_table2(self, items: list):
         """
@@ -212,6 +228,8 @@ class MainWindow(QMainWindow):
                         self.table.setItem(i, j, elem)
             rect = self.rect()
             self.resize(rect.width(), rect.height() - 1)
+        else:
+            self.table.setRowCount(0)
 
     def resize_table(self):
         """Изменение размеров таблицы"""
@@ -230,6 +248,63 @@ class MainWindow(QMainWindow):
                 elem = self.table.cellWidget(i, 1)
                 if elem:
                     self.table.setRowHeight(i, elem.height() + 5)
+
+    def rotate_clock(self, points: list) -> list:
+        """
+        Вращение координат часов на иконке
+        :param points: список точек
+        :param angle: угол поворота
+        :return: list
+        """
+
+        radian = self.__angle_icon * pi / 180
+        new_points = copy.deepcopy(points)
+        for i in range(len(new_points)):
+            new_points[i][0] = points[i][0] * cos(radian) - points[i][1] * sin(radian)
+            new_points[i][1] = points[i][0] * sin(radian) + points[i][1] * cos(radian)
+        self.__angle_icon += 15
+        if self.__angle_icon > 360:
+            self.__angle_icon = self.__angle_icon - 360
+        return new_points
+
+    def generate_icontext(self, count):
+        """
+        Генерация иконки с отображениекм количества новых записей
+        :return: QIcon
+        """
+        text = ""
+        icon_size = 24
+        half_icon_size = round(icon_size / 2)
+        new_icon = QIcon()
+        new_pixmap = QPixmap(icon_size, icon_size)
+        new_font = QFont()
+        new_font.setPointSize(12)
+        new_pixmap.fill(color=Qt.GlobalColor.white)
+        new_painter = QPainter()
+        new_painter.begin(new_pixmap)
+        # Вывод анимации в иконке
+        clock_points = [[-4, 8],
+                        [4, 8],
+                        [-4, -8],
+                        [4, -8],
+                        [-4, 8]]
+        new_points = self.rotate_clock(clock_points)
+        for i in range(len(clock_points)-1):
+            new_painter.drawLine(half_icon_size - new_points[i][0], half_icon_size - new_points[i][1],
+                                 half_icon_size - new_points[i+1][0], half_icon_size - new_points[i+1][1])
+
+        # Вывод количества новых объявлений
+        if count:
+            text = str(count)
+            new_painter.setPen(Qt.red)
+        else:
+            text = ""
+            new_painter.setPen(Qt.black)
+        new_painter.setFont(new_font)
+        new_painter.drawText(0, 0, icon_size, icon_size, Qt.AlignHCenter | Qt.AlignVCenter, text)
+        new_painter.end()
+        new_icon.addPixmap(new_pixmap)
+        return new_icon
 
     def resizeEvent(self, event) -> None:
         """Обработка изменения размеров окна"""
