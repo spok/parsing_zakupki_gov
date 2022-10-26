@@ -1,11 +1,9 @@
 import requests
 from bs4 import BeautifulSoup
-import lxml
-import time
 import threading
 from queue import Queue
 import logging
-
+import time
 
 class ParserSite:
     lock_items = threading.Lock()
@@ -60,6 +58,7 @@ class ParserSite:
         :return: документ со структурой страницы
         """
         response = requests.get(url, headers=headers)
+        time.sleep(0.1)
         if not response:
             return None
         soup = BeautifulSoup(response.text, 'lxml')

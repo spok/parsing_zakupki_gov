@@ -1,11 +1,72 @@
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QTabWidget, QLineEdit,
                              QMenuBar, QMenu, QFileDialog, QPushButton, QLabel, QLCDNumber, QComboBox, QTextEdit,
                              QSizePolicy, QTableWidget, QTableWidgetItem, QGroupBox, QPlainTextEdit, QStatusBar,
-                             QAbstractItemView, QAction)
-from PyQt5.QtCore import (Qt, QRect, QSize)
-from PyQt5.QtGui import QFont, QIcon, QPixmap, QPainter, QContextMenuEvent
+                             QAbstractItemView)
+from PyQt5.QtCore import (Qt, QRect)
+from PyQt5.QtGui import QFont, QIcon, QPixmap, QPainter
 from math import cos, sin, pi
 import copy
+from PyQt5.QtWidgets import QApplication, QStyledItemDelegate, QStyleOptionViewItem, QStyle
+from PyQt5.QtGui import QAbstractTextDocumentLayout, QPalette, QTextOption, QTextDocument
+from PyQt5.QtCore import QSizeF, QPointF, QRectF, QSize, Qt
+
+
+class HighlightDelegate(QStyledItemDelegate):
+    """
+    Класс делегата для ячеек таблицы с переносом текста
+    """
+    def __init__(self, parent=None):
+        super(HighlightDelegate, self).__init__(parent)
+        self._wordwrap = False
+        self.doc = QTextDocument(self)
+
+    def paint(self, painter, option, index):
+        painter.save()
+        options = QStyleOptionViewItem(option)
+        self.initStyleOption(options, index)
+        self.doc.setPlainText(options.text)
+
+        if self._wordwrap:
+            self.doc.setTextWidth(options.rect.width())
+        options.text = ""
+
+        style = QApplication.style() if options.widget is None else options.widget.style()
+        style.drawControl(QStyle.CE_ItemViewItem, options, painter)
+
+        if self._wordwrap:
+            painter.translate(options.rect.left(), options.rect.top())
+            clip = QRectF(QPointF(), QSizeF(options.rect.size()))
+            self.doc.drawContents(painter, clip)
+        else:
+            ctx = QAbstractTextDocumentLayout.PaintContext()
+            if option.state & QStyle.State_Selected:
+                ctx.palette.setColor(QPalette.Text, option.palette.color(
+                    QPalette.Active, QPalette.HighlightedText))
+            else:
+                ctx.palette.setColor(QPalette.Text, option.palette.color(
+                    QPalette.Active, QPalette.Text))
+            text_rect = style.subElementRect(QStyle.SE_ItemViewItemText, options, None)
+            if index.column() != 0:
+                text_rect.adjust(5, 0, 0, 0)
+            constant = 4
+            margin = (option.rect.height() - options.fontMetrics.height()) // 2
+            margin = margin - constant
+            text_rect.setTop(text_rect.top() + margin)
+            painter.translate(text_rect.topLeft())
+            painter.setClipRect(text_rect.translated(-text_rect.topLeft()))
+            self.doc.documentLayout().draw(painter, ctx)
+
+        painter.restore()
+        s = QSize(int(self.doc.idealWidth()), int(self.doc.size().height()))
+        index.model().setData(index, s, Qt.SizeHintRole)
+
+    def set_wordwrap(self, on):
+        self._wordwrap = on
+        mode = QTextOption.WordWrap if on else QTextOption.WrapAtWordBoundaryOrAnywhere
+        text_option = QTextOption(self.doc.defaultTextOption())
+        text_option.setWrapMode(mode)
+        self.doc.setDefaultTextOption(text_option)
+        self.parent().viewport().update()
 
 
 class MyTable(QTableWidget):
@@ -17,28 +78,6 @@ class MyTable(QTableWidget):
     def contextMenuEvent(self, event) -> None:
         self.contextMenu.addAction(self.openAct)
         action = self.contextMenu.exec_(self.mapToGlobal(event.pos()))
-
-
-class NameText(QPlainTextEdit):
-    """
-    Класс для отображения названия закупки с переносом строк
-    """
-    def __init__(self, text: str):
-        super().__init__()
-        self.setPlainText(text)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.setWordWrapMode(1)
-        self.setReadOnly(True)
-        self.setStyleSheet('border-style: solid; border-width: 0px; border-color: white;')
-        self.updateRequest.connect(self.handle_updateRequest)
-        self.handle_updateRequest(QRect(), 0)
-
-    def handle_updateRequest(self, rect, dy):
-        doc = self.document()
-        tb = doc.findBlockByNumber(doc.blockCount() - 1)
-        h = self.blockBoundingGeometry(tb).bottom() + 2 * doc.documentMargin()
-        self.setFixedHeight(h)
 
 
 class MainWindow(QMainWindow):
@@ -145,6 +184,10 @@ class MainWindow(QMainWindow):
         self.table.setColumnCount(5)
         self.table.setHorizontalHeaderLabels(self.hor_header)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        # Настройка делегата
+        self._delegate = HighlightDelegate(self.table)
+        self.table.setItemDelegate(self._delegate)
+        self._delegate.set_wordwrap(True)
         self.resize_table()
         # вторая вкладка с запросами
         self.label_keys = QLabel("Ключевые слова для выбора контрактов")
@@ -190,12 +233,8 @@ class MainWindow(QMainWindow):
             for j, key in enumerate(keys):
                 if key in item:
                     if type(item[key]) == str:
-                        if key == 'name':
-                            elem = NameText(item[key])
-                            self.table.setCellWidget(i, j, elem)
-                        else:
-                            elem = QTableWidgetItem(item[key])
-                            self.table.setItem(i, j, elem)
+                        newitem = QTableWidgetItem(item[key])
+                        self.table.setItem(i, j, newitem)
                     else:
                         elem = QTableWidgetItem(str(item[key]))
                         self.table.setItem(i, j, elem)
@@ -217,12 +256,8 @@ class MainWindow(QMainWindow):
             for i, item in enumerate(items):
                 for j, index in enumerate(indexs):
                     if type(item[index]) == str:
-                        if index == 2:
-                            elem = NameText(item[index])
-                            self.table.setCellWidget(i, j, elem)
-                        else:
-                            elem = QTableWidgetItem(item[index])
-                            self.table.setItem(i, j, elem)
+                        newitem = QTableWidgetItem(item[index])
+                        self.table.setItem(i, j, newitem)
                     else:
                         elem = QTableWidgetItem(str(item[index]))
                         self.table.setItem(i, j, elem)
@@ -258,10 +293,11 @@ class MainWindow(QMainWindow):
         """
 
         radian = self.__angle_icon * pi / 180
-        new_points = copy.deepcopy(points)
-        for i in range(len(new_points)):
-            new_points[i][0] = points[i][0] * cos(radian) - points[i][1] * sin(radian)
-            new_points[i][1] = points[i][0] * sin(radian) + points[i][1] * cos(radian)
+        new_points = []
+        for p in points:
+            x = p[0] * cos(radian) - p[1] * sin(radian)
+            y = p[0] * sin(radian) + p[1] * cos(radian)
+            new_points.append([x, y])
         self.__angle_icon += 15
         if self.__angle_icon > 360:
             self.__angle_icon = self.__angle_icon - 360
